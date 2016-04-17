@@ -4,6 +4,11 @@ public class BoxPanel {
     private int h;
     private int w;
 
+    public BoxPanel(BoxPanel boxPanel) {
+        this.h = boxPanel.h;
+        this.w = boxPanel.w;
+    }
+
     public BoxPanel(int h, int w) {
         this.h = h;
         this.w = w;
