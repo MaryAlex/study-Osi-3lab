@@ -73,7 +73,7 @@ public class Window extends JFrame {
                     if (!fileName.endsWith(".IN")) {
                         continue;
                     }
-                    file = fileName.substring(0, fileName.indexOf("."));
+                    file = path + File.separator + fileName.substring(0, fileName.indexOf("."));
                     cheakerIn.run();
                     solver.run();
                     cheakerOut.run();
@@ -85,14 +85,15 @@ public class Window extends JFrame {
                         e1.printStackTrace();
                     }
                     try {
-                        FileOutputStream out = new FileOutputStream("myAnswer" + file + FILE_END_OUT);
-                        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out));
-                        textArea1.setText(file);
+//                        FileOutputStream out = new FileOutputStream("myAnswer" + file + FILE_END_OUT);
+//                        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out));
+                        textArea1.append(file + "\n");
                         for (int i = 0; i < toOutput.size(); i++) {
                             textArea1.append(i + ". " + toOutput.get(i) + "\n");
-                            writer.write(toOutput.get(0)? "YES" : "NO");
+//                            writer.write(toOutput.get(0)? "YES" : "NO");
                         }
-                    } catch (IOException e1) {
+                        toOutput.clear();
+                    } catch (Exception e1) {
                         e1.printStackTrace();
                     }
                     try {
@@ -149,7 +150,7 @@ public class Window extends JFrame {
                             while ((line = reader.readLine()) != null) {
                                 String answer = answers.get(0)? "YES" : "NO";
                                 if (!answer.equals(line)) {
-                                    System.out.println("Wrong answer!");
+                                    textArea1.append("Wrong answer in " + i + " test!");
                                 }
                                 answers.remove(0);
                                 i++;
