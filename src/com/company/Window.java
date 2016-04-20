@@ -11,23 +11,26 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class Window extends JFrame {
     public static final String FILE_END_IN = ".IN";
     public static final String FILE_END_OUT = ".OUT";
-    private List<TestData> allData = new ArrayList<>();
-    private List<Boolean> answers = new ArrayList<>();
-    private List<Boolean> toOutput = new ArrayList<>();
+    private List<TestData> allData = Collections.synchronizedList(new ArrayList<>());
+    private List<Boolean> answers = Collections.synchronizedList(new ArrayList<>());
+    private List<Boolean> toOutput = Collections.synchronizedList(new ArrayList<>());
     private Thread cheakerIn = new Thread(checkerIn());
     private Thread solver = new Thread(solver());
     private Thread cheakerOut = new Thread(cheakerOut());
-    private Integer n;
+    private List<Integer> n = Collections.synchronizedList(new ArrayList<>());
     private JPanel panel;
     private JButton startButton;
     private JButton stopButton;
@@ -36,6 +39,8 @@ public class Window extends JFrame {
     private JTextArea textArea1;
     private String path = "";
     private String file = "";
+    private List<String> files = Collections.synchronizedList(new ArrayList<>());
+    private File f;
 
     public Window() {
         super("Hello");
@@ -68,42 +73,10 @@ public class Window extends JFrame {
                 if (path.equals("")) {
                     return;
                 }
-                File f = new File(path);
-                for (String fileName : f.list()) {
-                    if (!fileName.endsWith(".IN")) {
-                        continue;
-                    }
-                    file = path + File.separator + fileName.substring(0, fileName.indexOf("."));
-                    cheakerIn.run();
-                    solver.run();
-                    cheakerOut.run();
-                    try {
-                        if (solver.isAlive()) {
-                            solver.wait();
-                        }
-                    } catch (InterruptedException e1) {
-                        e1.printStackTrace();
-                    }
-                    try {
-//                        FileOutputStream out = new FileOutputStream("myAnswer" + file + FILE_END_OUT);
-//                        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out));
-                        textArea1.append(file + "\n");
-                        for (int i = 0; i < toOutput.size(); i++) {
-                            textArea1.append(i + ". " + toOutput.get(i) + "\n");
-//                            writer.write(toOutput.get(0)? "YES" : "NO");
-                        }
-                        toOutput.clear();
-                    } catch (Exception e1) {
-                        e1.printStackTrace();
-                    }
-                    try {
-                        if (cheakerOut.isAlive()) {
-                            cheakerOut.wait();
-                        }
-                    } catch (InterruptedException e1) {
-                        e1.printStackTrace();
-                    }
-                }
+                f = new File(path);
+                cheakerIn.run();
+                solver.run();
+                cheakerOut.run();
             }
         };
     }
@@ -125,10 +98,12 @@ public class Window extends JFrame {
                                 Thread.sleep(1000);
                             }
                         }
-                        if (i == n) {
+                        if (i >= n.get(0)) {
+                            n.remove(0);
                             break;
                         }
                     }
+                    System.out.println("Solver done");
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -140,29 +115,40 @@ public class Window extends JFrame {
         return new Runnable() {
             @Override
             public void run() {
-                try (FileInputStream in = new FileInputStream(file + FILE_END_OUT);
-                     BufferedReader reader =
-                             new BufferedReader(new InputStreamReader(in))) {
-                    String line = null;
-                    int i = 0;
-                    while (true) {
-                        while (answers.size() != 0) {
+                while (true) {
+                    while (files.size() != 0) {
+                        textArea1.append(files.get(0) + "\n");
+                        try (FileInputStream in = new FileInputStream(files.get(0) + FILE_END_OUT);
+                             BufferedReader reader =
+                                     new BufferedReader(new InputStreamReader(in))) {
+                            File fileOutput = new File(files.get(0) + "programs.txt");
+                            PrintWriter writer = new PrintWriter(fileOutput, "UTF-8");
+                            String line = "";
+                            int i = 0;
                             while ((line = reader.readLine()) != null) {
                                 String answer = answers.get(0)? "YES" : "NO";
+                                writer.print(i + ". " + answer + "\n");
+                                writer.flush();
+                                textArea1.append(i + ". " + answer + "\n");
                                 if (!answer.equals(line)) {
-                                    textArea1.append("Wrong answer in " + i + " test!");
+                                    textArea1.append("Wrong answer in " + i + " test! It's wrong answer upper!\n");
+                                    writer.print("Wrong answer in " + i + " test! It's wrong answer upper!\n");
+                                    writer.flush();
                                 }
                                 answers.remove(0);
                                 i++;
                                 System.out.println(line + " line");
                             }
-                        }
-                        if (i == n) {
-                            break;
+                            writer.close();
+                            files.remove(0);
+                        } catch (IOException x) {
+                            System.err.println(x);
                         }
                     }
-                } catch (IOException x) {
-                    System.err.println(x);
+                    if (!cheakerIn.isAlive()) {
+                        break;
+                    }
+                    System.out.println("checkerOut done!");
                 }
             }
         };
@@ -172,47 +158,56 @@ public class Window extends JFrame {
         return new Runnable() {
             @Override
             public void run() {
-                try (FileInputStream in = new FileInputStream(file + FILE_END_IN);
-                     BufferedReader reader =
-                             new BufferedReader(new InputStreamReader(in))) {
-                    String line = null;
-                    if ((line = reader.readLine()) != null) {
-                        System.out.println(line + " line");
+                outerloop:
+                for (String fileName : f.list()) {
+                    if (!fileName.endsWith(".IN")) {
+                        continue;
                     }
-                    if (line == null || line.contains(" ")) {
-                        System.out.println("Incorrect data");
-                        n = 0;
-                        return;
-                    }
-                    n = Integer.valueOf(line);
-                    if (n < 1 || n > 5) {
-                        System.out.println("Incorrect data");
-                        n = 0;
-                        return;
-                    }
-                    System.out.println(n + " n");
-                    for (int i = 0; i < n; i++) {
-                        String test = reader.readLine();
-                        List<String> data = new ArrayList<>(Arrays.asList(test.split(" ")));
-                        data.removeIf(s -> s.equals(""));
-                        if (data.size() > 12) {
+                    file = path + File.separator + fileName.substring(0, fileName.indexOf("."));
+                    try (FileInputStream in = new FileInputStream(file + FILE_END_IN);
+                         BufferedReader reader =
+                                 new BufferedReader(new InputStreamReader(in))) {
+                        String line = null;
+                        if ((line = reader.readLine()) != null) {
+                            System.out.println(line + " line");
+                        }
+                        if (line == null || line.contains(" ")) {
                             System.out.println("Incorrect data");
-                            n = 0;
-                            return;
+                            n.add(0);
+                            continue;
                         }
-                        List<BoxPanel> panels = new ArrayList<>();
-                        for (int j = 0; j < 12; j += 2) {
-                            if (Integer.valueOf(data.get(j)) > 10000 || Integer.valueOf(data.get(j + 1)) > 10000) {
-                                n = 0;
-                                return;
+                        Integer nLocal = Integer.valueOf(line);
+                        if (nLocal < 1 || nLocal > 5) {
+                            System.out.println("Incorrect data");
+                            nLocal = 0;
+                            continue;
+                        }
+                        System.out.println(nLocal + " n");
+                        for (int i = 0; i < nLocal; i++) {
+                            String test = reader.readLine();
+                            List<String> data = new ArrayList<>(Arrays.asList(test.split(" ")));
+                            data.removeIf(s -> s.equals(""));
+                            if (data.size() > 12) {
+                                System.out.println("Incorrect data");
+                                nLocal = 0;
+                                continue outerloop;
                             }
-                            panels.add(new BoxPanel(Integer.valueOf(data.get(j)), Integer.valueOf(data.get(j+1))));
+                            List<BoxPanel> panels = new ArrayList<>();
+                            for (int j = 0; j < 12; j += 2) {
+                                if (Integer.valueOf(data.get(j)) > 10000 || Integer.valueOf(data.get(j + 1)) > 10000) {
+                                    nLocal = 0;
+                                    continue outerloop;
+                                }
+                                panels.add(new BoxPanel(Integer.valueOf(data.get(j)), Integer.valueOf(data.get(j + 1))));
+                            }
+                            allData.add(new TestData(panels));
+                            System.out.println(i + " i in reading");
                         }
-                        allData.add(new TestData(panels));
-                        System.out.println(i + " i in reading");
+                        files.add(file);
+                        n.add(nLocal);
+                    } catch (IOException x) {
+                        System.err.println(x);
                     }
-                } catch (IOException x) {
-                    System.err.println(x);
                 }
             }
         };
